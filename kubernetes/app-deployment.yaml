@@ -1,0 +1,111 @@
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "lahaus"
+  namespace: "default"
+  labels:
+    app: "lahaus"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "lahaus"
+  template:
+    metadata:
+      labels:
+        app: "lahaus"
+    spec:
+      containers:
+      - name: "lahaus"
+        image: eldelavid/lahaus:latest
+        env:
+        - name: POSTGRES_USER
+          value: "postgresadmin"
+        - name: POSTGRES_PASSWORD
+          value: "admin123"
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "clients"
+
+
+---
+apiVersion: "v1"
+kind: "Service"
+metadata:
+  name: "lahaus-service"
+  namespace: "default"
+  labels:
+    app: "lahaus"
+spec:
+  ports:
+  - protocol: "TCP"
+    port: 5000
+    targetPort: 5000
+  selector:
+    app: "lahaus"
+  type: "LoadBalancer"
+  loadBalancerIP: ""
+
+---
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "postgres"
+  namespace: "default"
+  labels:
+    app: "postgres"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: "postgres"
+  template:
+    metadata:
+      labels:
+        app: "postgres"
+    spec:
+      containers:
+      - name: "postgres"
+        image: "postgres:9.6.2"
+#        envFrom:
+#          - secretRef:
+#              name: postgres-secrets
+        envFrom:
+          - configMapRef:
+              name: postgres-config
+        ports:
+          - containerPort: 5432
+            name: postgres
+        volumeMounts:
+          - name: postgres-storage
+            mountPath: /var/lib/postgresql/db-data
+      volumes:
+       - name: postgres-storage
+         persistentVolumeClaim:
+           claimName: postgres-pv-claim
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pv-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: postgres
